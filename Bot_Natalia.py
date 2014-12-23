@@ -17,7 +17,7 @@ class MyBot(LiacBot):
         self.last_move = None
 
     def on_move(self, state):
-        board = Board(state, 'white') # **
+        board = Board(state) # **
         
         if state['bad_move']:
             print state['board']
@@ -31,10 +31,10 @@ class MyBot(LiacBot):
 
         print 'Board validated'
         moveList = []
-        for piece in board.AllPieces:
-            for moveAux in piece.possibleMoves:
-                if piece.team == 'white': # * not generalized
-                    moveList.append([piece.position, moveAux])
+        for p in board.AllPieces:
+            for moveAux in p.possibleMoves:
+                if p.team == board.BotTeam: # * not generalized
+                    moveList.append([p.position, moveAux])
         print 'Possible moves found'
         
         # EVALUATE each possible move and it's possible responses
@@ -45,14 +45,14 @@ class MyBot(LiacBot):
         while move[0] < 2**63:
             move[0] = move[0] << 1
             i += 1
-        ArgFrom = (i%8, i//8)
+        ArgFrom = (i//8, i%8)
         print 'From: ', ArgFrom
         
         i = 0
         while move[1] < 2**63:
             move[1] = move[1] << 1
             i += 1
-        ArgTo = (i%8, i//8)
+        ArgTo = (i//8, i%8)
         print 'To:   ', ArgTo
     
         print 'Move translated'
@@ -68,7 +68,7 @@ class MyBot(LiacBot):
 
 # MODELS ======================================================================
 class Board(object):
-    def __init__(self, state, team):
+    def __init__(self, state):
         self.AllPieces = []
         self.WhitePieces = {'Pawns': 0,'Rooks': 0,'Bishop': 0,'Queen': 0,'Knight': 0}
         self.BlackPieces = {'Pawns': 0,'Rooks': 0,'Bishop': 0,'Queen': 0,'Knight': 0}
@@ -80,6 +80,9 @@ class Board(object):
         self.OccupiedCells = {}
         self.EmptyCells  = 0
         self.Value = 0
+        self.BotTeam = None
+
+        self.getBotTeam(state)
     
         self.WhitePieces['Pawns'] = self.getGeneralPosition(state, 'p')
         self.WhitePieces['Rooks'] = self.getGeneralPosition(state, 'r')
@@ -105,12 +108,19 @@ class Board(object):
         self.AllPieces.extend(self.Queens)
         self.AllPieces.extend(self.Knights)
 
-        self.getBoardValue(team)
+        self.getBoardValue()
 
 
-    def getBoardValue(self, team):
+    def getBotTeam(self, state):
+        if state['who_moves'] == WHITE:
+            self.BotTeam = 'white'
+        elif state['who_moves'] == BLACK:
+            self.BotTeam = 'black'
+            
+
+    def getBoardValue(self):
         for p in self.AllPieces:
-            if p.team == team:
+            if p.team == self.BotTeam:
                 self.Value += p.value
             else:
                 self.Value -= p.value
@@ -121,8 +131,9 @@ class Board(object):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000 
         for p in state['board']:
             if p == pieceCode: 
-                bitboard += bitboardBase >> i
-            i += 1
+                bitboard += bitboardBase
+            bitboardBase = bitboardBase >> 1
+            
         return bitboard
                 
     def getIndividualPositions(self, state):
@@ -295,9 +306,6 @@ class Bishop(Piece):
         while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FIrstColumn) != FirstColumn):
             moves.append((previousMove << 1) << 8)
             previousMove = (previousMove << 1) << 8
-
-        for m in moves:
-            print bin(m)
       
         return moves
 
@@ -406,7 +414,7 @@ class Knight(Piece):
             moves.remove((self.position << 8) >> 2)
                 
         for m in moves:
-            if (m == 0) or (m > 2**63):
+            if (m < 1) or (m > 2**63):
                 moves.remove(m)
 
         return moves
