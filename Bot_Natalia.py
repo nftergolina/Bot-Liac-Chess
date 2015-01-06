@@ -18,7 +18,7 @@ class MyBot(LiacBot):
 
     def on_move(self, state):
         board = Board(state)
-        
+
         if state['bad_move']:
             print state['board']
             raw_input()
@@ -29,6 +29,8 @@ class MyBot(LiacBot):
                 for moveAux in p.possibleMoves:
                     if p.possibleMoves:
                         moveList.append([p.position, moveAux])
+
+        del board
         
         
         # EVALUATE each possible move and it's possible responses
@@ -55,7 +57,6 @@ class MyBot(LiacBot):
         self.send_move(ArgFrom, ArgTo)
         print 'Move sent'
 
-        del board
         
 
     def on_game_over(self, state):
@@ -67,8 +68,6 @@ class MyBot(LiacBot):
 class Board(object):
     def __init__(self, state):
         self.AllPieces = []
-        self.WhitePieces = {'Pawns': 0,'Rooks': 0,'Bishop': 0,'Queen': 0,'Knight': 0}
-        self.BlackPieces = {'Pawns': 0,'Rooks': 0,'Bishop': 0,'Queen': 0,'Knight': 0}
         self.Pawns = []
         self.Rooks = []
         self.Bishops = []
@@ -81,21 +80,7 @@ class Board(object):
 
         self.getBotTeam(state)
     
-        self.WhitePieces['Pawns'] = self.getGeneralPosition(state, 'p')
-        self.WhitePieces['Rooks'] = self.getGeneralPosition(state, 'r')
-        self.WhitePieces['Bishop'] = self.getGeneralPosition(state, 'b')
-        self.WhitePieces['Queen'] = self.getGeneralPosition(state, 'q')
-        self.WhitePieces['Knight'] = self.getGeneralPosition(state, 'n')
-
-        self.BlackPieces['Pawns'] = self.getGeneralPosition(state, 'P')
-        self.BlackPieces['Rooks'] = self.getGeneralPosition(state, 'R')
-        self.BlackPieces['Bishop'] = self.getGeneralPosition(state, 'B')
-        self.BlackPieces['Queen'] = self.getGeneralPosition(state, 'Q')
-        self.BlackPieces['Knight'] = self.getGeneralPosition(state, 'N')
-
-        self.OccupiedCells['white'] = self.WhitePieces['Pawns'] | self.WhitePieces['Rooks'] | self.WhitePieces['Bishop'] | self.WhitePieces['Queen'] | self.WhitePieces['Knight']
-        self.OccupiedCells['black'] = self.EmptyCells | self.BlackPieces['Pawns'] | self.BlackPieces['Rooks'] | self.BlackPieces['Bishop'] | self.BlackPieces['Queen'] | self.BlackPieces['Knight']
-        self.EmptyCells = ~( self.OccupiedCells['white'] | self.OccupiedCells['black'] )
+    
 
         self.getIndividualPositions(state)
             
@@ -104,6 +89,20 @@ class Board(object):
         self.AllPieces.extend(self.Bishops)
         self.AllPieces.extend(self.Queens)
         self.AllPieces.extend(self.Knights)
+
+        self.OccupiedCells['white'] = 0
+        self.OccupiedCells['black'] = 0
+        
+        for p in self.AllPieces:
+            if p.team == 'white':
+                self.OccupiedCells['white'] += p.position
+            elif p.team == 'black':
+                self.OccupiedCells['black'] += p.position
+
+        self.EmptyCells = ~( self.OccupiedCells['white'] | self.OccupiedCells['black'] )
+
+        for p in self.AllPieces:
+            p.generatePossibleMoves(self)
 
         self.getBoardValue()
 
@@ -121,17 +120,6 @@ class Board(object):
                 self.Value += p.value
             else:
                 self.Value -= p.value
-
-    def getGeneralPosition(self, state, pieceCode):
-        i = 0
-        bitboard = 0
-        bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000 
-        for p in state['board']:
-            if p == pieceCode: 
-                bitboard += bitboardBase
-            bitboardBase = bitboardBase >> 1
-            
-        return bitboard
                 
     def getIndividualPositions(self, state):
         i = 0
@@ -143,9 +131,9 @@ class Board(object):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000
         for p in state['board']:
             if p == p.lower():
-                team = 'white'
-            else:
                 team = 'black'
+            else:
+                team = 'white'
             if p.lower() == 'p':
                 self.Pawns.append(Pawn(bitboardBase >> i, team, self))
                 j += 1
@@ -176,7 +164,7 @@ class Piece(object):
     def __init__(self):
         self.position = None
         self.team = None
-        self.possibleMoves = None
+        self.possibleMoves = []
         self.value = None
         self.char = None
         
@@ -187,7 +175,7 @@ class Pawn(Piece):
         self.position = p
         self.team = t
         if self.team == 'black':
-            self.char = 'P'
+            self.char = 'p'
             i = 0
             aux = self.position
             while aux < 2**64:
@@ -195,14 +183,13 @@ class Pawn(Piece):
                 i += 1
             self.value = i*i
         elif self.team == 'white':
-            self.char = 'p'
+            self.char = 'P'
             i = 0
             aux = self.position
             while aux > 0:
                 aux = aux >> 8
                 i += 1
             self.value = i*i      
-        self.possibleMoves = self.generatePossibleMoves(board)
         
     def generatePossibleMoves(self, board):
         SecondRow  = 0b0000000010000000000000000000000000000000000000000000000000000000
@@ -213,16 +200,16 @@ class Pawn(Piece):
 
         moves = []
 
-        if self.team == 'white' and ((self.position >> 8) & board.OccupiedCells['white']) == 0:
+        '''if self.team == 'black' and ((self.position >> 8) & board.OccupiedCells['white']) == 0:
             moves.append(self.position >> 8)
             if (self.position >= SecondRow) and (self.position > ThirdRow) and ((self.position >> 16) & board.OccupiedCells['white']) == 0:
                 moves.append(self.position >> 16)
-        elif self.team == 'black' and ((self.position << 8) & board.OccupiedCells['black']) == 0:
+        elif self.team == 'white' and ((self.position << 8) & board.OccupiedCells['black']) == 0:
             moves.append(self.position << 8)
             if (self.position >= SeventhRow) and (self.position < EighthRow) and ((self.position << 16) & board.OccupiedCells['black']) == 0:
-                moves.append(self.position << 16)
+                moves.append(self.position << 16)'''
                 
-        return moves
+        self.possibleMoves = moves
    
 
 class Rook(Piece):
@@ -231,18 +218,17 @@ class Rook(Piece):
         self.position = p
         self.team = t
         if self.team == 'black':
-            self.char = 'R'
-        elif self.team == 'white':
             self.char = 'r'
+        elif self.team == 'white':
+            self.char = 'R'
         self.value = 10
-        self.possibleMoves = self.generatePossibleMoves(board)
         
 
     def generatePossibleMoves(self, board):
         FirstColumn = 0b1000000010000000100000001000000010000000100000001000000010000000
         EighthColumn = 0b0000000100000001000000010000000100000001000000010000000100000001  
         moves = []
-        '''previousMove = self.position
+        previousMove = self.position
         # while the move doesn't overlap other pieces from the same team and doesn't leave the board
         while (((previousMove >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0):
             moves.append(previousMove >> 8)
@@ -261,9 +247,9 @@ class Rook(Piece):
         previousMove = self.position
         while (((previousMove << 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | FirstColumn) != FirstColumn):
             moves.append(previousMove << 1)
-            previousMove = previousMove << 1'''
-     
-        return moves
+            previousMove = previousMove << 1
+            
+        self.possibleMoves = moves
 
 
 class Bishop(Piece):
@@ -272,18 +258,17 @@ class Bishop(Piece):
         self.position = p
         self.team = t
         if self.team == 'black':
-            self.char = 'B'
-        elif self.team == 'white':
             self.char = 'b'
+        elif self.team == 'white':
+            self.char = 'B'
         self.value = 12
-        self.possibleMoves = self.generatePossibleMoves(board)
         
 
     def generatePossibleMoves(self, board):
         FirstColumn = 0b1000000010000000100000001000000010000000100000001000000010000000
         EighthColumn = 0b0000000100000001000000010000000100000001000000010000000100000001
         moves = []
-        '''previousMove = self.position
+        previousMove = self.position
         # while the move doesn't overlap other pieces from the same team and doesn't leave the board
         while ((((previousMove >> 8) << 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | FirstColumn) != FirstColumn):
             moves.append((previousMove >> 8) << 1)
@@ -300,11 +285,12 @@ class Bishop(Piece):
             previousMove = (previousMove >> 1) >> 8
 
         previousMove = self.position
-        while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FIrstColumn) != FirstColumn):
+        while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FirstColumn) != FirstColumn):
             moves.append((previousMove << 1) << 8)
-            previousMove = (previousMove << 1) << 8'''
+            previousMove = (previousMove << 1) << 8
       
-        return moves
+        self.possibleMoves = moves
+        
 
 class Queen(Piece):
     Alive = None
@@ -312,11 +298,10 @@ class Queen(Piece):
         self.position = p
         self.team = t
         if self.team == 'black':
-            self.char = 'Q'
-        elif self.team == 'white':
             self.char = 'q'
+        elif self.team == 'white':
+            self.char = 'Q'
         self.value = 20
-        self.possibleMoves = self.generatePossibleMoves(board)
         
 
     def generatePossibleMoves(self, board):
@@ -364,7 +349,7 @@ class Queen(Piece):
             moves.append(previousMove << 1)
             previousMove = previousMove << 1
         
-        return moves
+        self.possibleMoves = moves
 
 class Knight(Piece):
     Alive = None
@@ -372,15 +357,14 @@ class Knight(Piece):
         self.position = p
         self.team = t
         if self.team == 'black':
-            self.char = 'N'
-        elif self.team == 'white':
             self.char = 'n'
+        elif self.team == 'white':
+            self.char = 'N'
         self.value = 10
-        self.possibleMoves = self.generatePossibleMoves(board)
         
 
     def generatePossibleMoves(self, board):
-        FirstColumn = 0b1000000010000000100000001000000010000000100000001000000010000000
+        '''FirstColumn = 0b1000000010000000100000001000000010000000100000001000000010000000
         SecondColumn = 0b0100000001000000010000000100000001000000010000000100000001000000
         SeventhColumn = 0b0000001000000010000000100000001000000010000000100000001000000010
         EighthColumn = 0b0000000100000001000000010000000100000001000000010000000100000001
@@ -412,9 +396,10 @@ class Knight(Piece):
                 
         for m in moves:
             if (m < 1) or (m > 2**63) or ((m & board.OccupiedCells[self.team]) != 0):
-                moves.remove(m)
+                moves.remove(m)'''
+        moves = []
 
-        return moves
+        self.possibleMoves = moves
 
    
 # =============================================================================
