@@ -39,14 +39,14 @@ class MyBot(LiacBot):
         del moveList[:]
         
         i = 0
-        while move[0] > 0:
+        while move[0] > 1:
             move[0] = move[0] >> 1
             i += 1
         ArgFrom = (i//8, 7-(i%8))
         print 'From: ', ArgFrom
            
         i = 0
-        while move[1] > 0:
+        while move[1] > 1:
             move[1] = move[1] >> 1
             i += 1
         ArgTo = (i//8, 7-(i%8))
