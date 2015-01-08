@@ -61,7 +61,6 @@ class MyBot(LiacBot):
         ArgTo = (i//8, 7-(i%8))
         print 'To:   ', ArgTo
     
-        print 'Move translated'
         self.last_move = [ArgFrom, ArgTo]
         self.send_move(ArgFrom, ArgTo)
         print 'Move sent'
@@ -141,15 +140,25 @@ class Pawn(Piece):
         
     def generatePossibleMoves(self, board):
         moves = []
+        if self.team == 'black':
+            if ((self.position >> 8) >> 1) | board.OccupiedCells['white'] == board.OccupiedCells['white'] and (self.position & EighthColumn) == 0:
+                moves.append((self.position >> 8) >> 1)
+            if ((self.position >> 8) << 1) | board.OccupiedCells['white'] == board.OccupiedCells['white'] and (self.position & FirstColumn) == 0:
+                moves.append((self.position >> 8) << 1)
+            if ((self.position >> 8) & ~board.EmptyCells) == 0:
+                moves.append(self.position >> 8)
+                if (self.position | SecondRow) == SecondRow and ((self.position >> 16) & ~board.EmptyCells) == 0:
+                    moves.append(self.position >> 16)
+        elif self.team == 'white':
+            if ((self.position << 8) >> 1) | board.OccupiedCells['black'] == board.OccupiedCells['black'] and (self.position & EighthColumn) == 0:
+                moves.append((self.position << 8) >> 1)
+            if ((self.position << 8) << 1) | board.OccupiedCells['black'] == board.OccupiedCells['black'] and (self.position & FirstColumn) == 0:
+                moves.append((self.position << 8) << 1)
+            if ((self.position << 8) & ~board.EmptyCells) == 0:
+                moves.append(self.position << 8)
+                if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~board.EmptyCells) == 0:
+                    moves.append(self.position << 16)
 
-        if self.team == 'black' and ((self.position >> 8) & ~board.EmptyCells) == 0:
-            moves.append(self.position >> 8)
-            if (self.position | SecondRow) == SecondRow and ((self.position >> 16) & ~board.EmptyCells) == 0:
-                moves.append(self.position >> 16)
-        elif self.team == 'white' and ((self.position << 8) & ~board.EmptyCells) == 0:
-            moves.append(self.position << 8)
-            if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~board.EmptyCells) == 0:
-                moves.append(self.position << 16)
                 
         self.possibleMoves = moves
    
