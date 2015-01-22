@@ -53,17 +53,17 @@ class MyBot(LiacBot):
                     
 
     def negamax(self, state):
-        mainNode = Node(state, [], 1)
-        bestValue = float('-inf')
+        mainNode = Node(state, [], 0)
+        '''bestValue = float('-inf')
         for p in mainNode.board.AllPieces:
             if p.team == mainNode.board.BotTeam:
                 for m in p.possibleMoves:
                     newNode = Node(state, [p.position, m], 1)
                     if newNode.value > bestValue:
                         bestValue = newNode.value
-                        bestMove = [p.position, m]
-                        print bestMove
-        return bestMove
+                        bestMove = newNode.move
+                        print bestMove'''
+        return [1, 1]
         
 
     def on_game_over(self, state):
@@ -76,12 +76,15 @@ class MyBot(LiacBot):
 class Node(object):
     def __init__(self, previousState, move, depth):
         self.children = []
-        self.move = move
-
+        self.move = []
+        self.move.extend(move)
+        print previousState['board']
         if move:
             self.state = self.getState(previousState, move)
         else:
             self.state = previousState
+        print self.state['board']
+        print '------------------------------------------------------------------------'
         
         self.board = Board(self.state)
         self.value = self.board.BoardValue
@@ -94,29 +97,30 @@ class Node(object):
         else:
             self.team = self.board.BotEnemy
             
-        if depth < 1:
+        if depth < 4:
             for p in self.board.AllPieces:
                 if p.team == self.team:
                     for m in p.possibleMoves:
                         self.children.append(Node(self.state, [p.position, m], self.depth + 1))
          
     def getState(self, previousState, move):
-        newState = previousState
-        newStateBoard = []
+        newState = {}
+        newState['who_moves'] = previousState['who_moves']
+        newState['board'] = []
         for char in previousState['board']:
-            newStateBoard.append(char)
+            newState['board'].append(char)
         i = 0
         while move[0] < 2**63:
             move[0] = move[0] << 1
             i += 1
-        movedChar = newStateBoard[i]
-        newStateBoard[i] = '.'
+        movedChar = newState['board'][i]
+        newState['board'][i] = '.'
         i = 0
         while move[1] < 2**63:
             move[1] = move[1] << 1
             i += 1
-        newStateBoard[i] = movedChar
-        newState['board'] = ''.join(newStateBoard)
+        newState['board'][i] = movedChar
+        newState['board'] = ''.join(newState['board'])
         return newState
     
         
