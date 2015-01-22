@@ -63,8 +63,6 @@ class MyBot(LiacBot):
         return [1, 1]
         
 
-        
-
     def on_game_over(self, state):
         print 'Game Over.'
         # sys.exit()
@@ -76,18 +74,18 @@ class Node(object):
     def __init__(self, previousState, move, depth):
         self.children = []
         self.move = move
-        
+
+        print previousState['board'] 
         if move:
             self.state = self.getState(previousState, move)
         else:
             self.state = previousState
-
         print self.state['board']
-            
+        print '----------------------------------------------------------------'
+        
         self.board = Board(self.state)
         self.value = self.board.BoardValue
-        generateChildren(depth)
-
+        self.generateChildren(depth)
 
     def generateChildren(self, depth):
         if (depth % 2) == 0:
@@ -100,9 +98,7 @@ class Node(object):
                 if p.team == self.team:
                     for m in p.possibleMoves:
                         self.children.append(Node(self.state, [p.position, m], depth + 1))
-                
-            
-
+         
     def getState(self, previousState, move):
         newState = previousState
         newStateBoard = []
@@ -112,12 +108,15 @@ class Node(object):
         while move[0] < 2**63:
             move[0] = move[0] << 1
             i += 1
+        print i
         movedChar = newStateBoard[i]
+        print movedChar
         newStateBoard[i] = '.'
         i = 0
         while move[1] < 2**63:
             move[1] = move[1] << 1
             i += 1
+        print i
         newStateBoard[i] = movedChar
         newState['board'] = ''.join(newStateBoard)
         return newState
@@ -159,8 +158,7 @@ class Board(object):
         else:
             self.BotTeam = 'black'
             self.BotEnemy = 'white'
-
-                 
+                
     def getIndividualPositions(self, state):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000
         for p in state['board']:
@@ -188,7 +186,6 @@ class Board(object):
         self.allyPawnsAlive = i
         self.enemyPawnsAlive = j
 
-
     def getBoardValue(self):
         for p in self.AllPieces:
             if p.team == self.BotTeam:
@@ -201,7 +198,6 @@ class Board(object):
             self.BoardValue = float('-inf')
             
         
-
 
 class Piece(object):
     def __init__(self):
@@ -216,8 +212,7 @@ class Pawn(Piece):
         self.position = p
         self.team = t
         self.getPawnValue()
-
-        
+       
     def getPawnValue(self):
         p = self.position
         i = 0
@@ -234,7 +229,6 @@ class Pawn(Piece):
             if (self.position & EighthRow) == self.position:
                 i = float('inf')
         self.value = i*i
-
 
     def generatePossibleMoves(self, board):
         moves = []
@@ -255,8 +249,7 @@ class Pawn(Piece):
             if ((self.position << 8) & ~board.EmptyCells) == 0:
                 moves.append(self.position << 8)
                 if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~board.EmptyCells) == 0:
-                    moves.append(self.position << 16)
-                    
+                    moves.append(self.position << 16)                 
         self.possibleMoves = moves
    
 
@@ -266,7 +259,6 @@ class Rook(Piece):
         self.team = t
         self.value = 10
         
-
     def generatePossibleMoves(self, board):
         moves = []
         previousMove = self.position
@@ -294,7 +286,6 @@ class Rook(Piece):
             previousMove = previousMove << 1
             if previousMove & board.EmptyCells == 0:
                 break
-            
         self.possibleMoves = moves
 
 
@@ -304,7 +295,6 @@ class Bishop(Piece):
         self.team = t
         self.value = 12
         
-
     def generatePossibleMoves(self, board):
         moves = []
         previousMove = self.position
@@ -332,7 +322,6 @@ class Bishop(Piece):
             previousMove = (previousMove << 1) << 8
             if previousMove & board.EmptyCells == 0:
                 break
-      
         self.possibleMoves = moves
         
 
@@ -393,8 +382,8 @@ class Queen(Piece):
             previousMove = previousMove << 1
             if previousMove & board.EmptyCells == 0:
                 break
-        
         self.possibleMoves = moves
+
 
 class Knight(Piece):
     def __init__(self, p, t, board):
@@ -465,7 +454,6 @@ class Knight(Piece):
                 moves.remove((self.position >> 8) >> 2)
             if i == 0:
                 moves.remove((self.position << 8) >> 2)
-
         self.possibleMoves = []
         for m in moves:
             if (m & board.OccupiedCells[self.team]) == 0:
