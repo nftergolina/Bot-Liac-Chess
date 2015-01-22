@@ -27,13 +27,11 @@ class MyBot(LiacBot):
         self.last_move = None
 
     def on_move(self, state):
-        board = Board(state)
-
         if state['bad_move']:
             print state['board']
             raw_input()
         
-        self.sendMove(self.negamax(board, state))
+        self.sendMove(self.negamax(state))
         
    
     def sendMove(self, move):
@@ -54,13 +52,18 @@ class MyBot(LiacBot):
         print 'Move sent'
                     
 
-    def negamax(self, board, state):
-        
-        mainNode = Node(state, [0b10000, 0b1000], 0)
-        
-        
-
-        return [1, 1]
+    def negamax(self, state):
+        mainNode = Node(state, [], 1)
+        bestValue = float('-inf')
+        for p in mainNode.board.AllPieces:
+            if p.team == mainNode.board.BotTeam:
+                for m in p.possibleMoves:
+                    newNode = Node(state, [p.position, m], 1)
+                    if newNode.value > bestValue:
+                        bestValue = newNode.value
+                        bestMove = [p.position, m]
+                        print bestMove
+        return bestMove
         
 
     def on_game_over(self, state):
@@ -75,19 +78,17 @@ class Node(object):
         self.children = []
         self.move = move
 
-        print previousState['board'] 
         if move:
             self.state = self.getState(previousState, move)
         else:
             self.state = previousState
-        print self.state['board']
-        print '----------------------------------------------------------------'
         
         self.board = Board(self.state)
         self.value = self.board.BoardValue
         self.generateChildren(depth)
 
     def generateChildren(self, depth):
+        self.depth = depth
         if (depth % 2) == 0:
             self.team = self.board.BotTeam
         else:
@@ -97,7 +98,7 @@ class Node(object):
             for p in self.board.AllPieces:
                 if p.team == self.team:
                     for m in p.possibleMoves:
-                        self.children.append(Node(self.state, [p.position, m], depth + 1))
+                        self.children.append(Node(self.state, [p.position, m], self.depth + 1))
          
     def getState(self, previousState, move):
         newState = previousState
@@ -108,15 +109,12 @@ class Node(object):
         while move[0] < 2**63:
             move[0] = move[0] << 1
             i += 1
-        print i
         movedChar = newStateBoard[i]
-        print movedChar
         newStateBoard[i] = '.'
         i = 0
         while move[1] < 2**63:
             move[1] = move[1] << 1
             i += 1
-        print i
         newStateBoard[i] = movedChar
         newState['board'] = ''.join(newStateBoard)
         return newState
@@ -158,6 +156,7 @@ class Board(object):
         else:
             self.BotTeam = 'black'
             self.BotEnemy = 'white'
+
                 
     def getIndividualPositions(self, state):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000
