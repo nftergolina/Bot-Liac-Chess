@@ -63,8 +63,7 @@ class MyBot(LiacBot):
         for child in root.children:
             val = -self.negamax(child, depth -1, -b, -a)
             bestValue = max([bestValue, val])
-            self.bestMove = []
-            self.bestMove.extend(child.move)
+            self.bestMove = child.move
             a = max([a, val])
             if a >= b:
                 break
@@ -188,6 +187,8 @@ class Board(object):
                 self.BoardValue += p.value
             else:
                 self.BoardValue -= p.value
+        self.BoardValue += (self.allyPawnsAlive - 10)**2
+        self.BoardValue -= (self.enemyPawnsAlive - 10)**2
         if self.allyPawnsAlive == 0:
             self.BoardValue = float('inf')
         elif self.enemyPawnsAlive == 0:
@@ -213,18 +214,18 @@ class Pawn(Piece):
         p = self.position
         i = 0
         if self.team == 'white':
-            while p < 2**63:
-                p = p << 8
+            while p > 1:
+                p = p >> 8
                 i += 1
             if (self.position & FirstRow) == self.position:
                 i = float('inf')
         elif self.team == 'black':
-            while p > 0:
-                p = p >> 8
+            while p < 2**63:
+                p = p << 8
                 i += 1
             if (self.position & EighthRow) == self.position:
                 i = float('inf')
-        self.value = i*i
+        self.value = 5*i
 
     def generatePossibleMoves(self, board):
         moves = []
