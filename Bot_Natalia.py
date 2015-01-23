@@ -30,8 +30,10 @@ class MyBot(LiacBot):
         if state['bad_move']:
             print state['board']
             raw_input()
-        
-        self.sendMove(self.negamax(state))
+            
+        self.bestMove = []
+        self.negamax(Node(state, []), 4, float('-inf'), float('inf'))
+        self.sendMove(self.bestMove)
         
    
     def sendMove(self, move):
@@ -52,18 +54,21 @@ class MyBot(LiacBot):
         print 'Move sent'
                     
 
-    def negamax(self, state):
-        mainNode = Node(state, [], 0)
-        '''bestValue = float('-inf')
-        for p in mainNode.board.AllPieces:
-            if p.team == mainNode.board.BotTeam:
-                for m in p.possibleMoves:
-                    newNode = Node(state, [p.position, m], 1)
-                    if newNode.value > bestValue:
-                        bestValue = newNode.value
-                        bestMove = newNode.move
-                        print bestMove'''
-        return [1, 1]
+    def negamax(self, root, depth, a, b):
+        if depth == 0:
+            return root.value
+        
+        bestValue = float('-inf')
+        root.generateChildren()
+        for child in root.children:
+            val = -self.negamax(child, depth -1, -b, -a)
+            bestValue = max([bestValue, val])
+            self.bestMove = []
+            self.bestMove.extend(child.move)
+            a = max([a, val])
+            if a >= b:
+                break
+        return bestValue
         
 
     def on_game_over(self, state):
@@ -74,38 +79,26 @@ class MyBot(LiacBot):
 
 # MODELS ======================================================================
 class Node(object):
-    def __init__(self, previousState, move, depth):
+    def __init__(self, previousState, move):
         self.children = []
         self.move = []
         self.move.extend(move)
-        print previousState['board']
         if move:
             self.state = self.getState(previousState, move)
         else:
             self.state = previousState
-        print self.state['board']
-        print '------------------------------------------------------------------------'
-        
         self.board = Board(self.state)
         self.value = self.board.BoardValue
-        self.generateChildren(depth)
 
-    def generateChildren(self, depth):
-        self.depth = depth
-        if (depth % 2) == 0:
-            self.team = self.board.BotTeam
-        else:
-            self.team = self.board.BotEnemy
-            
-        if depth < 4:
-            for p in self.board.AllPieces:
-                if p.team == self.team:
-                    for m in p.possibleMoves:
-                        self.children.append(Node(self.state, [p.position, m], self.depth + 1))
+    def generateChildren(self): 
+        for p in self.board.AllPieces:
+            if p.team == self.board.BotTeam:
+                for m in p.possibleMoves:
+                    self.children.append(Node(self.state, [p.position, m]))
          
     def getState(self, previousState, move):
         newState = {}
-        newState['who_moves'] = previousState['who_moves']
+        newState['who_moves'] = - previousState['who_moves']
         newState['board'] = []
         for char in previousState['board']:
             newState['board'].append(char)
