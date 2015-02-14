@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import time
 import sys
 import random
@@ -30,13 +29,15 @@ class MyBot(LiacBot):
         if state['bad_move']:
             print state['board']
             raw_input()
-            
+
         self.bestMove = []
-        self.negamax(Node(state, []), 4, float('-inf'), float('inf'))
-        self.sendMove(self.bestMove)
+        move = []
+        value = self.negamax(Node(state, []), 1, float('-inf'), float('inf'), state['who_moves'])
+        move = self.translate_move(self.bestMove)
+        self.send_move(move[0], move[1])
         
    
-    def sendMove(self, move):
+    def translate_move(self, move):
         i = 0
         while move[0] > 1:
             move[0] = move[0] >> 1
@@ -50,21 +51,21 @@ class MyBot(LiacBot):
         ArgTo = (i//8, 7-(i%8))
         print 'To:   ', ArgTo
         self.last_move = [ArgFrom, ArgTo]
-        self.send_move(ArgFrom, ArgTo)
         print 'Move sent'
-                    
-
-    def negamax(self, root, depth, a, b):
-        if depth == 0:
-            return root.value
-        
+        return [ArgFrom, ArgTo]
+    
+    
+    def negamax(self, root, depth, a, b, color):
+        if depth == 0 or root.value == float('-inf') or root.value == float('inf'):
+            return root.value * color
         bestValue = float('-inf')
         root.generateChildren()
         for child in root.children:
-            val = -self.negamax(child, depth -1, -b, -a)
-            bestValue = max([bestValue, val])
-            self.bestMove = child.move
-            a = max([a, val])
+            val = -self.negamax(child, depth -1, -b, -a, -color)
+            if bestValue < val:
+                bestValue = val
+                self.bestMove = child.move
+            a = max(a, val)
             if a >= b:
                 break
         return bestValue
@@ -88,10 +89,11 @@ class Node(object):
             self.state = previousState
         self.board = Board(self.state)
         self.value = self.board.BoardValue
+        self.team = self.board.BotTeam
 
-    def generateChildren(self): 
+    def generateChildren(self):
         for p in self.board.AllPieces:
-            if p.team == self.board.BotTeam:
+            if p.team == self.team:
                 for m in p.possibleMoves:
                     self.children.append(Node(self.state, [p.position, m]))
          
@@ -125,8 +127,8 @@ class Board(object):
         self.AllPieces = []
         self.OccupiedCells = {}
         self.BoardValue = 0
-        self.allyPawnsAlive = 0
-        self.enemyPawnsAlive = 0 
+        self.whitePawnsAlive = 0
+        self.blackPawnsAlive = 0 
 
         self.getBotTeam(state)
         self.getIndividualPositions(state)
@@ -156,18 +158,18 @@ class Board(object):
                 
     def getIndividualPositions(self, state):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000
+        i = 0
+        j = 0
         for p in state['board']:
-            i = 0
-            j = 0
             if p == p.lower():
                 team = 'black'
             else:
                 team = 'white'
             if p.lower() == 'p':
                 self.AllPieces.append(Pawn(bitboardBase, team, self))
-                if team == self.BotTeam:
+                if team == 'white':
                     i += 1
-                elif team == self.BotEnemy:
+                elif team == 'black':
                     j += 1
             elif p.lower() == 'r':
                 self.AllPieces.append(Rook(bitboardBase, team, self))     
@@ -178,21 +180,22 @@ class Board(object):
             elif p.lower() == 'n':
                 self.AllPieces.append(Knight(bitboardBase, team, self))              
             bitboardBase = bitboardBase >> 1
-        self.allyPawnsAlive = i
-        self.enemyPawnsAlive = j
+        self.whitePawnsAlive = i
+        self.blackPawnsAlive = j
+        
 
     def getBoardValue(self):
         for p in self.AllPieces:
-            if p.team == self.BotTeam:
+            if p.team == 'white':
                 self.BoardValue += p.value
-            else:
+            elif p.team == 'black':
                 self.BoardValue -= p.value
-        self.BoardValue += (self.allyPawnsAlive - 10)**2
-        self.BoardValue -= (self.enemyPawnsAlive - 10)**2
-        if self.allyPawnsAlive == 0:
-            self.BoardValue = float('inf')
-        elif self.enemyPawnsAlive == 0:
+        self.BoardValue -= (self.whitePawnsAlive - 10)**2
+        self.BoardValue += (self.blackPawnsAlive - 10)**2
+        if self.whitePawnsAlive == 0:
             self.BoardValue = float('-inf')
+        elif self.blackPawnsAlive == 0:
+            self.BoardValue = float('inf')
             
         
 
@@ -240,13 +243,23 @@ class Pawn(Piece):
                     moves.append(self.position >> 16)
         elif self.team == 'white':
             if ((self.position << 8) >> 1) | board.OccupiedCells['black'] == board.OccupiedCells['black'] and (self.position & EighthColumn) == 0:
-                moves.append((self.position << 8) >> 1)
+               moves.append((self.position << 8) >> 1)
             if ((self.position << 8) << 1) | board.OccupiedCells['black'] == board.OccupiedCells['black'] and (self.position & FirstColumn) == 0:
                 moves.append((self.position << 8) << 1)
             if ((self.position << 8) & ~board.EmptyCells) == 0:
                 moves.append(self.position << 8)
                 if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~board.EmptyCells) == 0:
-                    moves.append(self.position << 16)                 
+                    moves.append(self.position << 16)
+
+        if self.team == 'black' and ((self.position >> 8) & ~board.EmptyCells) == 0:
+            moves.append(self.position >> 8)
+            if (self.position | SecondRow) == SecondRow and ((self.position >> 16) & ~board.EmptyCells) == 0:
+                moves.append(self.position >> 16)
+        elif self.team == 'white' and ((self.position << 8) & ~board.EmptyCells) == 0:
+            moves.append(self.position << 8)
+            if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~board.EmptyCells) == 0:
+                moves.append(self.position << 16)
+                
         self.possibleMoves = moves
    
 
@@ -254,139 +267,152 @@ class Rook(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 10
+        self.value = 15
         
     def generatePossibleMoves(self, board):
-        moves = []
-        previousMove = self.position
-        # while the move doesn't overlap other pieces from the same team and doesn't leave the board
-        while (((previousMove >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0):
-            moves.append(previousMove >> 8)
-            previousMove = previousMove >> 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove << 8 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0):
-            moves.append(previousMove << 8)
-            previousMove = previousMove << 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove >> 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append(previousMove >> 1)
-            previousMove = previousMove >> 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove << 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append(previousMove << 1)
-            previousMove = previousMove << 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        self.possibleMoves = moves
+         moves = []
+         previousMove = self.position
+         while (((previousMove >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0):
+             moves.append(previousMove >> 8)
+             previousMove = previousMove >> 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+             
+ 
+         previousMove = self.position
+         while (((previousMove << 8 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0):
+             moves.append(previousMove << 8)
+             previousMove = previousMove << 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while (((previousMove >> 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append(previousMove >> 1)
+             previousMove = previousMove >> 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while (((previousMove << 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append(previousMove << 1)
+             previousMove = previousMove << 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+             
+         self.possibleMoves = moves
 
 
 class Bishop(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 12
+        self.value = 18
         
     def generatePossibleMoves(self, board):
-        moves = []
-        previousMove = self.position
-        # while the move doesn't overlap other pieces from the same team and doesn't leave the board
-        while ((((previousMove >> 8) << 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append((previousMove >> 8) << 1)
-            previousMove = (previousMove >> 8) << 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove << 8) >> 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append((previousMove << 8) >> 1)
-            previousMove = (previousMove << 8) >> 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove >> 1 ) >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append((previousMove >> 1) >> 8)
-            previousMove = (previousMove >> 1) >> 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append((previousMove << 1) << 8)
-            previousMove = (previousMove << 1) << 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        self.possibleMoves = moves
+         moves = []
+         previousMove = self.position
+         while ((((previousMove >> 8) << 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append((previousMove >> 8) << 1)
+             previousMove = (previousMove >> 8) << 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove << 8) >> 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append((previousMove << 8) >> 1)
+             previousMove = (previousMove << 8) >> 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove >> 1 ) >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append((previousMove >> 1) >> 8)
+             previousMove = (previousMove >> 1) >> 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append((previousMove << 1) << 8)
+             previousMove = (previousMove << 1) << 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+       
+         self.possibleMoves = moves
         
 
 class Queen(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 20
+        self.value = 25
 
     def generatePossibleMoves(self, board):
-        moves = []
-        previousMove = self.position
-        # while the move doesn't overlap other pieces from the same team and doesn't leave the board
-        while ((((previousMove >> 8) << 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append((previousMove >> 8) << 1)
-            previousMove = (previousMove >> 8) << 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove << 8) >> 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append((previousMove << 8) >> 1)
-            previousMove = (previousMove << 8) >> 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove >> 1 ) >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append((previousMove >> 1) >> 8)
-            previousMove = (previousMove >> 1) >> 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append((previousMove << 1) << 8)
-            previousMove = (previousMove << 1) << 8
-            if previousMove & board.EmptyCells == 0:
-                break 
-        previousMove = self.position
-        while (((previousMove >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0):
-            moves.append(previousMove >> 8)
-            previousMove = previousMove >> 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove << 8 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0):
-            moves.append(previousMove << 8)
-            previousMove = previousMove << 8
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove >> 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | EighthColumn) != EighthColumn):
-            moves.append(previousMove >> 1)
-            previousMove = previousMove >> 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        previousMove = self.position
-        while (((previousMove << 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | FirstColumn) != FirstColumn):
-            moves.append(previousMove << 1)
-            previousMove = previousMove << 1
-            if previousMove & board.EmptyCells == 0:
-                break
-        self.possibleMoves = moves
-
+         moves = []
+         previousMove = self.position
+         while ((((previousMove >> 8) << 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append((previousMove >> 8) << 1)
+             previousMove = (previousMove >> 8) << 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove << 8) >> 1) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append((previousMove << 8) >> 1)
+             previousMove = (previousMove << 8) >> 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove >> 1 ) >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append((previousMove >> 1) >> 8)
+             previousMove = (previousMove >> 1) >> 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while ((((previousMove << 1 ) << 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append((previousMove << 1) << 8)
+             previousMove = (previousMove << 1) << 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+    
+         previousMove = self.position
+         while (((previousMove >> 8) & board.OccupiedCells[self.team]) == 0) and ((previousMove >> 8) > 0):
+             moves.append(previousMove >> 8)
+             previousMove = previousMove >> 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while (((previousMove << 8 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove << 8)%(2**64) != 0):
+             moves.append(previousMove << 8)
+             previousMove = previousMove << 8
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while (((previousMove >> 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | EighthColumn) != EighthColumn):
+             moves.append(previousMove >> 1)
+             previousMove = previousMove >> 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+ 
+         previousMove = self.position
+         while (((previousMove << 1 ) & board.OccupiedCells[self.team]) == 0) and ((previousMove | FirstColumn) != FirstColumn):
+             moves.append(previousMove << 1)
+             previousMove = previousMove << 1
+             if previousMove & board.EmptyCells == 0:
+                 break
+         
+         self.possibleMoves = moves
 
 class Knight(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 15
+        self.value = 20
         
     def generatePossibleMoves(self, board):
         i = 0
@@ -457,7 +483,6 @@ class Knight(Piece):
                 self.possibleMoves.append(m)
 
 
-   
 # =============================================================================
 
 if __name__ == '__main__':
