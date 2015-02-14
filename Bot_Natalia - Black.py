@@ -32,7 +32,8 @@ class MyBot(LiacBot):
 
         self.bestMove = []
         move = []
-        value = self.negamax(Node(state, []), 3, float('-inf'), float('inf'))
+        self.depth = 1
+        value = self.negamax(Node(state, []), self.depth, float('-inf'), float('inf'))
         move = self.translate_move(self.bestMove)
         self.send_move(move[0], move[1])
         
@@ -61,10 +62,11 @@ class MyBot(LiacBot):
         bestValue = float('-inf')
         root.generateChildren()
         for child in root.children:
-            val = -self.negamax(child, depth -1, -b, -a)
-            if bestValue < val:
+            val = - self.negamax(child, depth -1, -b, -a)
+            if val > bestValue:
                 bestValue = val
-                self.bestMove = child.move
+                if depth == self.depth:
+                    self.bestMove = child.move
             a = max(a, val)
             if a >= b:
                 break
