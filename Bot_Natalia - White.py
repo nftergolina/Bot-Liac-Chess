@@ -96,6 +96,7 @@ class Node(object):
     def generateChildren(self):
         for p in self.board.AllPieces:
             if p.team == self.team:
+                p.generatePossibleMoves(self.board)
                 for m in p.possibleMoves:
                     self.children.append(Node(self.state, [p.position, m]))
          
@@ -142,9 +143,6 @@ class Board(object):
             self.OccupiedCells[p.team] += p.position
         
         self.EmptyCells = ~( self.OccupiedCells['white'] | self.OccupiedCells['black'] )
-
-        for p in self.AllPieces:
-            p.generatePossibleMoves(self)
 
         self.getBoardValue()
 
