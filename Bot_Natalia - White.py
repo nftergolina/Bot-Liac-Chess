@@ -185,6 +185,12 @@ class Board(object):
         
 
     def getBoardValue(self):
+        if self.whitePawnsAlive == 0:
+            self.BoardValue = float('-inf')
+            return
+        elif self.blackPawnsAlive == 0:
+            self.BoardValue = float('inf')
+            return
         for p in self.AllPieces:
             if p.team == 'white':
                 self.BoardValue += p.value
@@ -192,10 +198,6 @@ class Board(object):
                 self.BoardValue -= p.value
         self.BoardValue -= (self.whitePawnsAlive - 10)**2
         self.BoardValue += (self.blackPawnsAlive - 10)**2
-        if self.whitePawnsAlive == 0:
-            self.BoardValue = float('-inf')
-        elif self.blackPawnsAlive == 0:
-            self.BoardValue = float('inf')
             
         
 

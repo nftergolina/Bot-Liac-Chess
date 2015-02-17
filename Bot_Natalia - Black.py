@@ -4,12 +4,34 @@ import random
 
 from base_client import LiacBot
 
+PAWN_MATERIAL   = 100
+KNIGHT_MATERIAL = 320
+BISHOP_MATERIAL = 330
+ROOK_MATERIAL   = 500
+QUEEN_MATERIAL  = 900
+
+PAWN_POSITIONAL_1 = float('inf')
+PAWN_POSITIONAL_2 = 400
+PAWN_POSITIONAL_3 = 150
+PAWN_POSITIONAL_4 = 100
+PAWN_POSITIONAL_5 = 50
+PAWN_POSITIONAL_6 = 20
+PAWN_POSITIONAL_7 = 0
+
+PAWNS_ALIVE_MATERIAL = [float('inf'), 500, 300, 200, 100, 50, 20, 10, 0]
+
+DEPTH = 2
+
 WHITE = 1
 BLACK = -1
 NONE  = 0
 
 FirstRow      = 0b1111111100000000000000000000000000000000000000000000000000000000
 SecondRow     = 0b0000000011111111000000000000000000000000000000000000000000000000
+ThirdRow      = 0b0000000000000000111111110000000000000000000000000000000000000000
+FourthRow     = 0b0000000000000000000000001111111100000000000000000000000000000000
+FifthRow      = 0b0000000000000000000000000000000011111111000000000000000000000000
+SixthRow      = 0b0000000000000000000000000000000000000000111111110000000000000000
 SeventhRow    = 0b0000000000000000000000000000000000000000000000001111111100000000
 EighthRow     = 0b0000000000000000000000000000000000000000000000000000000011111111
 FirstColumn   = 0b1000000010000000100000001000000010000000100000001000000010000000
@@ -32,8 +54,7 @@ class MyBot(LiacBot):
 
         self.bestMove = []
         move = []
-        self.depth = 2
-        value = self.negamax(Node(state, []), self.depth, float('-inf'), float('inf'))
+        value = self.negamax(Node(state, []), DEPTH, float('-inf'), float('inf'))
         move = self.translate_move(self.bestMove)
         self.send_move(move[0], move[1])
         
@@ -65,7 +86,7 @@ class MyBot(LiacBot):
             val = - self.negamax(child, depth -1, -b, -a)
             if val > bestValue:
                 bestValue = val
-                if depth == self.depth:
+                if depth == DEPTH:
                     self.bestMove = child.move
             a = max(a, val)
             if a >= b:
@@ -185,17 +206,18 @@ class Board(object):
         
 
     def getBoardValue(self):
-        for p in self.AllPieces:
-            if p.team == 'white':
-                self.BoardValue += p.value
-            elif p.team == 'black':
-                self.BoardValue -= p.value
-        self.BoardValue -= (self.whitePawnsAlive - 10)**2
-        self.BoardValue += (self.blackPawnsAlive - 10)**2
         if self.whitePawnsAlive == 0:
             self.BoardValue = float('-inf')
         elif self.blackPawnsAlive == 0:
             self.BoardValue = float('inf')
+        else:
+            for p in self.AllPieces:
+                if p.team == 'white':
+                    self.BoardValue += p.value
+                elif p.team == 'black':
+                    self.BoardValue -= p.value
+            self.BoardValue -= PAWNS_ALIVE_MATERIAL[self.whitePawnsAlive]
+            self.BoardValue += PAWNS_ALIVE_MATERIAL[self.blackPawnsAlive]
             
         
 
@@ -213,22 +235,39 @@ class Pawn(Piece):
         self.team = t
         self.getPawnValue()
        
-    def getPawnValue(self):
-        p = self.position
-        i = 0
+    def getPawnValue(self):      
+        self.value = PAWN_MATERIAL
         if self.team == 'white':
-            while p > 1:
-                p = p >> 8
-                i += 1
-            if (self.position & FirstRow) == self.position:
-                i = float('inf')
+            if self.position | SeventhRow == SeventhRow:
+                self.value += PAWN_POSITIONAL_7
+            elif self.position | SixthRow == SixthRow:
+                self.value += PAWN_POSITIONAL_6
+            elif self.position | FifthRow == FifthRow:
+                self.value += PAWN_POSITIONAL_5
+            elif self.position | FourthRow == FourthRow:
+                self.value += PAWN_POSITIONAL_4
+            elif self.position | ThirdRow == ThirdRow:
+                self.value += PAWN_POSITIONAL_3
+            elif self.position | SecondRow == SecondRow:
+                self.value += PAWN_POSITIONAL_2
+            elif self.position | FirstRow == FirstRow:
+                self.value += PAWN_POSITIONAL_1       
         elif self.team == 'black':
-            while p < 2**63:
-                p = p << 8
-                i += 1
-            if (self.position & EighthRow) == self.position:
-                i = float('inf')
-        self.value = 5*i
+            if self.position | SecondRow == SecondRow:
+                self.value += PAWN_POSITIONAL_7
+            elif self.position | ThirdRow == ThirdRow:
+                self.value += PAWN_POSITIONAL_6
+            elif self.position | FourthRow == FourthRow:
+                self.value += PAWN_POSITIONAL_5
+            elif self.position | FifthRow == FifthRow:
+                self.value += PAWN_POSITIONAL_4
+            elif self.position | SixthRow == SixthRow:
+                self.value += PAWN_POSITIONAL_3
+            elif self.position | SeventhRow == SeventhRow:
+                self.value += PAWN_POSITIONAL_2
+            elif self.position | EighthRow == EighthRow:
+                self.value += PAWN_POSITIONAL_1
+                
 
     def generatePossibleMoves(self, board):
         moves = []
@@ -267,7 +306,7 @@ class Rook(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 15
+        self.value = ROOK_MATERIAL
         
     def generatePossibleMoves(self, board):
          moves = []
@@ -307,7 +346,7 @@ class Bishop(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 18
+        self.value = BISHOP_MATERIAL
         
     def generatePossibleMoves(self, board):
          moves = []
@@ -346,7 +385,7 @@ class Queen(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 25
+        self.value = QUEEN_MATERIAL
 
     def generatePossibleMoves(self, board):
          moves = []
@@ -412,7 +451,7 @@ class Knight(Piece):
     def __init__(self, p, t, board):
         self.position = p
         self.team = t
-        self.value = 20
+        self.value = KNIGHT_MATERIAL
         
     def generatePossibleMoves(self, board):
         i = 0
