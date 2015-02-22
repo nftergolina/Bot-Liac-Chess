@@ -19,6 +19,7 @@ PAWN_POSITIONAL_6 = 20
 PAWN_POSITIONAL_7 = 0
 
 PAWNS_ALIVE_MATERIAL = [float('inf'), 600, 300, 200, 100, 50, 20, 10, 0]
+BISHOPS_ALIVE_METERIAL = [0, 0, 20]
 
 DEPTH = 2
 
@@ -152,7 +153,9 @@ class Board(object):
         self.OccupiedCells = {}
         self.BoardValue = 0
         self.whitePawnsAlive = 0
-        self.blackPawnsAlive = 0 
+        self.blackPawnsAlive = 0
+        self.whiteBishopsAlive = 0
+        self.blackBishopsAlive = 0
 
         self.getBotTeam(state)
         self.getIndividualPositions(state)
@@ -181,6 +184,8 @@ class Board(object):
         bitboardBase = 0b1000000000000000000000000000000000000000000000000000000000000000
         i = 0
         j = 0
+        k = 0
+        l = 0
         for p in state['board']:
             if p == p.lower():
                 team = 'black'
@@ -195,7 +200,11 @@ class Board(object):
             elif p.lower() == 'r':
                 self.AllPieces.append(Rook(bitboardBase, team, self))     
             elif p.lower() == 'b':
-                self.AllPieces.append(Bishop(bitboardBase, team, self))                
+                self.AllPieces.append(Bishop(bitboardBase, team, self))
+                if team == 'white':
+                    k += 1
+                elif team == 'black':
+                    l += 1
             elif p.lower() == 'q':
                 self.AllPieces.append(Queen(bitboardBase, team, self))                
             elif p.lower() == 'n':
@@ -218,6 +227,8 @@ class Board(object):
                     self.BoardValue -= p.value
             self.BoardValue -= PAWNS_ALIVE_MATERIAL[self.whitePawnsAlive]
             self.BoardValue += PAWNS_ALIVE_MATERIAL[self.blackPawnsAlive]
+            self.BoardValue += BISHOPS_ALIVE_MATERIAL[self.whiteBishopsAlive]
+            self.BoardValue -= BISHOPS_ALIVE_MATERIAL[self.blackBishopsAlive]
             
         
 
