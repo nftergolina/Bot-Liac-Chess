@@ -38,7 +38,7 @@ SecondColumn  = 0b01000000010000000100000001000000010000000100000001000000010000
 SeventhColumn = 0b0000001000000010000000100000001000000010000000100000001000000010
 EighthColumn  = 0b0000000100000001000000010000000100000001000000010000000100000001
 
-DEPTH = 1
+MAX_DEPTH = 3
 
 # BOT =========================================================================
 class MyBot(LiacBot):
@@ -54,12 +54,12 @@ class MyBot(LiacBot):
             raw_input()
 
 
-        BitBoardState = self.string_to_bitboard(state)
+        bitboard_state = self.string_to_bitboard(state)
         
-        self.bestMove = []
+        self.best_move = []
         move = []
-        value = self.negamax(Node(BitBoardState, []), DEPTH, float('-inf'), float('inf'))
-        move = self.translate_move(self.bestMove)
+        value = self.negamax(Node(bitboard_state, []), MAX_DEPTH, float('-inf'), float('inf'))
+        move = self.translate_move(self.best_move)
         self.send_move(move[0], move[1])
 
     def string_to_bitboard(self, state):
@@ -99,7 +99,10 @@ class MyBot(LiacBot):
                 all_pieces.append(Knight(piece_position, team))             
             piece_position = piece_position >> 1
 
-        return {'bitboard': all_pieces, 'who_moves': state['who_moves'], 'black': b_cells, 'white': w_cells, 'empty': ~(b_cells | w_cells), 'black_bishops': b_bishops, 'white_bishops': w_bishops, 'black_pawns': b_pawns, 'white_pawns': w_pawns}
+        return {'bitboard': all_pieces, 'who_moves': state['who_moves'], 
+                'black': b_cells, 'white': w_cells, 'empty': ~(b_cells | w_cells), 
+                'black_bishops': b_bishops, 'white_bishops': w_bishops, 
+                'black_pawns': b_pawns, 'white_pawns': w_pawns}
    
     def translate_move(self, move):
         i = int(math.log(move[0], 2))
@@ -115,18 +118,18 @@ class MyBot(LiacBot):
     def negamax(self, root, depth, a, b):
         if depth == 0 or root.value == float('-inf') or root.value == float('inf'):
             return root.value * root.state['who_moves']
-        bestValue = float('-inf')
+        best_value = float('-inf')
         root.generate_children()
         for child in root.children:
             val = - self.negamax(child, depth -1, -b, -a)
-            if val >= bestValue:
-                bestValue = val
-                if depth == DEPTH:
-                    self.bestMove = child.move
+            if val >= best_value:
+                best_value = val
+                if depth == MAX_DEPTH:
+                    self.best_move = child.move
             a = max(a, val)
             if a >= b:
                 break
-        return bestValue
+        return best_value
         
     def on_game_over(self, state):
         print 'Game Over.'
@@ -138,9 +141,8 @@ class MyBot(LiacBot):
 class Node(object):
     def __init__(self, previous_state, move):
         self.children = []
-        self.move = []
         self.move = move
-        self.state = self.get_state(previous_state)
+        self.state = self.get_state(previous_state)      
         self.value = self.get_value()
         self.team = self.get_team()
 
@@ -148,31 +150,41 @@ class Node(object):
         for p in self.state['bitboard']:
             if p.team == self.team:
                 p.generate_moves(self.state)
-                for m in p.possibleMoves:
+                for m in p.possible_moves:
                     self.children.append(Node(self.state, [p.position, m]))
          
-    def get_state(self, new_state):
+    def get_state(self, previous_state):
         if not self.move:
+            return previous_state
+        else:
+            new_state = {'bitboard': [], 
+                        'black': previous_state['black'], 'white': previous_state['white'],
+                        'black_pawns': previous_state['black_pawns'], 'white_pawns': previous_state['white_pawns'],
+                        'black_bishops': previous_state['black_bishops'], 'white_bishops': previous_state['white_bishops'],
+                        'who_moves': - previous_state['who_moves'],
+                        'empty': previous_state['empty']}
+            for p in previous_state['bitboard']:
+                if p.position == self.move[0]:
+                    new_state[p.team] = previous_state[p.team] & ~p.position
+                    new_state[p.team] = previous_state[p.team] | p.position
+                    piece_type = p.__class__
+                    new_state['bitboard'].append(piece_type(self.move[1], TEAM[new_state['who_moves'] + 1]))
+                elif p.position == self.move[1]:
+                    if isinstance(p, Pawn):
+                        if p.team == 'black':
+                            new_state['black_pawns'] -= 1
+                        elif p.team == 'white':
+                            new_state['white_pawns'] -= 1
+                    elif isinstance(p, Bishop):
+                        if p.team == 'black':
+                            new_state['black_bishops'] -= 1
+                        elif p.team == 'white':
+                            new_state['white_bishops'] -= 1
+                    new_state[p.team] = new_state[p.team] & ~p.position 
+                else:
+                    new_state['bitboard'].append(p)
+            new_state['empty'] = ~(new_state['black'] | new_state['white'])
             return new_state
-        for p in new_state['bitboard']:
-            if p.position == self.move[0]:
-                p.position = self.move[1]
-            elif p.position == self.move[1]:
-                if p.team == 'black':
-                    new_state['black'] = new_state['black'] & (~p.position)
-                    if isinstance(p, Pawn):
-                        new_state['black_pawns'] -= 1
-                    elif isinstance(p, Bishop):
-                        new_state['black_bishops'] -= 1
-                elif p.team == 'white':
-                    new_state['white'] = new_state['white'] & (~p.position)
-                    if isinstance(p, Pawn):
-                        new_state['white_pawns'] -= 1
-                    elif isinstance(p, Bishop):
-                        new_state['white_bishops'] -= 1
-                new_state['bitboard'].remove(p)
-        new_state['who_moves'] = - new_state['who_moves']
-        return new_state
 
     def get_value(self):
         value = 0
@@ -202,16 +214,16 @@ class Piece(object):
         self.position = None
         self.team = None
         self.value = None
-        self.possibleMoves = []       
+        self.possible_moves = []       
 
 
 class Pawn(Piece):
     def __init__(self, p, t):
         self.position = p
         self.team = t
-        self.getPawnValue()
+        self.get_value()
        
-    def getPawnValue(self):      
+    def get_value(self):      
         self.value = PAWN_MATERIAL
         i = int(math.log(self.position, 2))
         if self.team == 'black':
@@ -249,7 +261,7 @@ class Pawn(Piece):
             if (self.position | SeventhRow) == SeventhRow and ((self.position << 16) & ~state['empty']) == 0:
                 moves.append(self.position << 16)
                
-        self.possibleMoves = moves
+        self.possible_moves = moves
 
     def check_piece(self):
         print self.team, ' Pawn'
@@ -260,6 +272,9 @@ class Rook(Piece):
     def __init__(self, p, t):
         self.position = p
         self.team = t
+        self.get_value()
+
+    def get_value(self):
         self.value = ROOK_MATERIAL
         
     def generate_moves(self, state):
@@ -292,7 +307,7 @@ class Rook(Piece):
              if previousMove & state['empty'] == 0:
                  break
              
-         self.possibleMoves = moves
+         self.possible_moves = moves
 
     def check_piece(self):
         print self.team, ' Rook'
@@ -303,6 +318,9 @@ class Bishop(Piece):
     def __init__(self, p, t):
         self.position = p
         self.team = t
+        self.get_value()
+
+    def get_value(self):
         self.value = BISHOP_MATERIAL
         
     def generate_moves(self, state):
@@ -335,7 +353,7 @@ class Bishop(Piece):
              if previousMove & state['empty'] == 0:
                  break
        
-         self.possibleMoves = moves
+         self.possible_moves = moves
 
     def check_piece(self):
         print self.team, ' Bishop'
@@ -346,6 +364,9 @@ class Queen(Piece):
     def __init__(self, p, t):
         self.position = p
         self.team = t
+        self.get_value()
+
+    def get_value(self):
         self.value = QUEEN_MATERIAL
 
     def generate_moves(self, state):
@@ -406,7 +427,7 @@ class Queen(Piece):
              if previousMove & state['empty'] == 0:
                  break
          
-         self.possibleMoves = moves
+         self.possible_moves = moves
 
     def check_piece(self):
         print self.team, ' Queen'
@@ -417,6 +438,9 @@ class Knight(Piece):
     def __init__(self, p, t):
         self.position = p
         self.team = t
+        self.get_value()
+
+    def get_value(self):
         self.value = KNIGHT_MATERIAL
         
     def generate_moves(self, state):
@@ -478,14 +502,14 @@ class Knight(Piece):
                 moves.remove((self.position >> 16) >> 1)
             if i == 0 and j == 0:
                 moves.remove((self.position << 16) >> 1)
-            if l == 0:
+            if l == 0: 
                 moves.remove((self.position >> 8) >> 2)
             if i == 0:
                 moves.remove((self.position << 8) >> 2)
-        self.possibleMoves = []
+        self.possible_moves = []
         for m in moves:
             if (m & state[self.team]) == 0:
-                self.possibleMoves.append(m)
+                self.possible_moves.append(m)
 
 
     def check_piece(self):
